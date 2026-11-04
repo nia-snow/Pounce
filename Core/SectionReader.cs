@@ -1,3 +1,5 @@
+using Pounce.String;
+
 namespace Pounce.Core
 {
     class SectionReaderException : PounceException
@@ -109,7 +111,7 @@ namespace Pounce.Core
 
         private bool IsBlank()
         {
-            return Lines[Position] == "";
+            return StringManip.IsBlank(Lines[Position]);
         }
 
 
@@ -124,23 +126,6 @@ namespace Pounce.Core
             {
                 Position++;
             }
-        }
-
-        // String Compare
-        // ------
-        private bool StartsWithIgnoreCase(string a, string b)
-        {
-            return a.StartsWith(b, StringComparison.OrdinalIgnoreCase);
-        }
-
-        private bool ContainsIgnoreCase(string a, string b)
-        {
-            return a.Contains(b, StringComparison.OrdinalIgnoreCase);
-        }
-
-        private bool EqualsIgnoreCase(string a, string b)
-        {
-            return a.Equals(b, StringComparison.OrdinalIgnoreCase);
         }
 
     }

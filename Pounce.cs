@@ -10,11 +10,15 @@
     {
         public static void Main(string[] args)
         {
-            if (args.Length != 1)
-            {
-                Console.Error.WriteLine("Expected Pounce file, found none.");
-            }
-            string filename = args[0];
+            // if (args.Length != 1)
+            // {
+            //     Console.Error.WriteLine("Expected Pounce file, found none.");
+            // }
+
+            // string filename = args[0];
+
+            // Debug:
+            string filename = "operator∧.pounce";
 
             SectionReader sr = new SectionReader();
             try
