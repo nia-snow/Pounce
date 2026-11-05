@@ -2,13 +2,13 @@ using Pounce.String;
 
 namespace Pounce.Core
 {
-    class SectionReaderException : PounceException
+    class SectionerException : PounceException
     {
-        public SectionReaderException(string message) : base(message) { }
+        public SectionerException(string message) : base(message) { }
     }
 
 
-    class SectionReader
+    class Sectioner
     {
         private List<string> Lines = new();
 
@@ -46,9 +46,9 @@ namespace Pounce.Core
             return Output;
         }
 
-        private SectionReaderException Error(int line, string message) 
+        private SectionerException Error(int line, string message) 
         {
-            return new SectionReaderException($"[Line {line}] {message}");
+            return new SectionerException($"[Line {line}] {message}");
         }
 
         private void CollectSection(List<string> words)

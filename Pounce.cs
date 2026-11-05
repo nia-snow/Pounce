@@ -23,7 +23,7 @@ namespace Pounce.Core
             string filename = "operator∧.pounce";
 
             CommentRemover cr = new CommentRemover();
-            SectionReader sr = new SectionReader();
+            Sectioner sr = new Sectioner();
             try
             {
                 List<string> lines = cr.RemoveInFile(filename);
