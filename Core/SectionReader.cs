@@ -69,7 +69,7 @@ namespace Pounce.Core
 
         private bool ContainsHeaderWord(List<string>? words)
         {
-            return words != null && Keywords.SectionHeaders.Overlaps(words.Select(s => s.ToLower()));
+            return words != null && Keywords.SectionHeaders.Overlaps(words);
         }
 
         
