@@ -1,4 +1,6 @@
-﻿namespace Pounce.Core
+﻿using System;
+
+namespace Pounce.Core
 {
     class PounceException : Exception
     {
@@ -20,10 +22,13 @@
             // Debug:
             string filename = "operator∧.pounce";
 
+            CommentRemover cr = new CommentRemover();
             SectionReader sr = new SectionReader();
             try
             {
-                List<Section> sections = sr.DetermineSections(filename);
+                List<string> lines = cr.RemoveInFile(filename);
+                
+                List<Section> sections = sr.DetermineSections(lines);
                 for (int i = 0; i < sections.Count; i++)
                 {
                     for (int j = 0; j < sections[i].Count; j++)

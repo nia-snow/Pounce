@@ -2,9 +2,15 @@ namespace Pounce.String
 {
     static class StringManip
     {
-        public static bool IsBlank(string a)
+        public static bool IsBlank(string s)
         {
-            return string.IsNullOrWhiteSpace(a);
+            return string.IsNullOrWhiteSpace(s);
+        }
+
+        // Split On Whitespace
+        public static string[] SplitOnWhite(string s)
+        {
+            return s.Split((char[]?) null, StringSplitOptions.RemoveEmptyEntries);
         }
 
         // String Compare

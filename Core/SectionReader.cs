@@ -18,12 +18,13 @@ namespace Pounce.Core
 
         List<Section> Output = new();
 
-        public List<Section> DetermineSections(string filename)
+        public List<Section> DetermineSections(List<string> lines)
         {
-            Lines = File.ReadLines(filename).ToList();
+            Lines = lines;
             Output = new();
             Position = 0;
 
+            SkipBlank();
             while (!IsAtEnd())
             {
                 SkipBlank();
@@ -35,8 +36,6 @@ namespace Pounce.Core
                     CollectSection(words);
                     continue;
                 }
-
-
 
                 else
                 {
@@ -77,14 +76,10 @@ namespace Pounce.Core
         private List<string>? LeadingWords()
         {
             string line = Peek();
-            List<string> words = line.Split((char[]?) null, StringSplitOptions.RemoveEmptyEntries).ToList();
+            List<string> words = StringManip.SplitOnWhite(line).ToList();
             int spot = -1;
             for (int i = 0; i < words.Count; i++)
             {
-                if (words[i].StartsWith("//"))
-                {
-                    break; 
-                }
                 if (words[i].EndsWith(":"))
                 {
                     words[i] = words[i][0..^1]; // remove ':'
