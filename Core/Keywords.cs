@@ -6,11 +6,7 @@ namespace Pounce.Core
         {
             "define",
             "theorem",
-            "rule"
-        };
-
-        public static HashSet<string> StatementHeaders = new HashSet<string>()
-        {
+            "rule",
             "using"
         };
     }

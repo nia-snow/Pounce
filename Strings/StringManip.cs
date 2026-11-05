@@ -1,4 +1,4 @@
-namespace Pounce.String
+namespace Pounce.Strings
 {
     static class StringManip
     {
@@ -12,6 +12,17 @@ namespace Pounce.String
         {
             return s.Split((char[]?) null, StringSplitOptions.RemoveEmptyEntries);
         }
+
+        // String Alteration
+        public static string RemoveColon(string s)
+        {
+            if (s.EndsWith(':'))
+            {
+                return s[0..^1];
+            }
+            return s;
+        }
+
 
         // String Compare
         // ------

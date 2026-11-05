@@ -1,4 +1,4 @@
-using Pounce.String;
+using Pounce.Strings;
 
 namespace Pounce.Core
 {
@@ -29,18 +29,14 @@ namespace Pounce.Core
             {
                 SkipBlank();
                 Start = Position;
-                List<string>? words = LeadingWords();
-                // Section Header
-                if (words != null)
-                {
-                    CollectSection(words);
-                    continue;
-                }
 
+                if (ContainsHeaderWord())
+                {
+                    CollectSection();
+                }
                 else
                 {
-                    // No other options yet
-                    throw Error(Start + 1, "Invalid start to section header");
+                    throw Error(Position + 1, $"Expected section header but found \"{Peek()}\"");
                 }
             }
             return Output;
@@ -51,44 +47,23 @@ namespace Pounce.Core
             return new SectionerException($"[Line {line}] {message}");
         }
 
-        private void CollectSection(List<string> words)
+        private void CollectSection()
         {
             int line = Position + 1;
             Next();
-            if (!ContainsHeaderWord(words))
-            {
-                throw Error(line, "':' used but no header word contained in line.");
-            }
-
-            while (!IsAtEnd() && !ContainsHeaderWord(LeadingWords()))
+            while (!IsAtEnd() && !ContainsHeaderWord())
             {
                 Next();
             }
             Output.Add(new Section(Lines[Start..Position], Start));
         }
 
-        private bool ContainsHeaderWord(List<string>? words)
+        private bool ContainsHeaderWord()
         {
-            return words != null && Keywords.SectionHeaders.Overlaps(words);
+            List<string> words = StringManip.SplitOnWhite(Peek()).Select(s => StringManip.RemoveColon(s)).ToList();
+            return Keywords.SectionHeaders.Overlaps(words);
         }
 
-        
-        private List<string>? LeadingWords()
-        {
-            string line = Peek();
-            List<string> words = StringManip.SplitOnWhite(line).ToList();
-            int spot = -1;
-            for (int i = 0; i < words.Count; i++)
-            {
-                if (words[i].EndsWith(":"))
-                {
-                    words[i] = words[i][0..^1]; // remove ':'
-                    spot = i;
-                    break;
-                }
-            }
-            return spot != -1 ? words[0..(spot+1)] : null;
-        }
 
         // Line Movement
         // ------
