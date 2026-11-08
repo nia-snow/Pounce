@@ -16,7 +16,7 @@ namespace Pounce.Core
         None
     }
 
-    record OperatorRef(string Symbol, Fixity fixity, int Line);
+    record OperatorRef(string Symbol, Fixity Fixity, int Line);
 
     abstract record Placement;
     record Tighter(OperatorRef Than) : Placement;
@@ -175,7 +175,7 @@ namespace Pounce.Core
                 Renumber(opInfo.Precedence);
             }
             List<string> symbols = opInfo.Symbols.ToList();
-            for (int i = 0; i < symbols; i++)
+            for (int i = 0; i < symbols.Count; i++)
             {
                 RemoveSymbol(new OperatorRef(symbols[i], opInfo.Fixity, line), name);
             }
@@ -186,7 +186,7 @@ namespace Pounce.Core
         public void AddSymbol(OperatorRef opRef, string name)
         {
             OperatorInfo? opInfo;
-            if (!Operators.TryGetValue(name, opInfo))
+            if (!Operators.TryGetValue(name, out opInfo))
             {
                 throw Error(opRef.Line, $"Nonexistent operator \"{name}\"");
             }
@@ -199,10 +199,10 @@ namespace Pounce.Core
                 throw Error(opRef.Line, $"Symbol {opRef.Symbol} already registered with name \"{name}\"");
             }
 
-            List<string> names;
+            List<string>? names;
             var key = (opRef.Symbol, opRef.Fixity);
-            bool found = SymbolToName.TryGetValue(key, out names);
-            if (found)
+            SymbolToName.TryGetValue(key, out names);
+            if (names != null)
             {
                 foreach (string anotherName in names)
                 {
@@ -231,11 +231,11 @@ namespace Pounce.Core
         public void RemoveSymbol(OperatorRef opRef, string name)
         {
             OperatorInfo? opInfo;
-            if (!Operators.TryGetValue(name, opInfo))
+            if (!Operators.TryGetValue(name, out opInfo))
             {
                 throw Error(opRef.Line, $"Nonexistent operator \"{name}\"");
             }
-            list<string> names;
+            List<string>? names;
             if (!SymbolToName.TryGetValue((opRef.Symbol, opRef.Fixity), out names))
             {
                 throw Error(opRef.Line, $"Unregistered symbol '{opRef.Symbol}' with fixity {opRef.Fixity}");
@@ -250,7 +250,7 @@ namespace Pounce.Core
             Debug.Assert(CheckInvariants());
         }
 
-        public bool TryLookup(string symbol, Fixity fixity, List<string> operandTypes, out OperatorInfo opInfo)
+        public bool TryLookup(string symbol, Fixity fixity, List<string> operandTypes, out OperatorInfo? opInfo)
         {
             List<string>? names;
             opInfo = null;
@@ -258,11 +258,11 @@ namespace Pounce.Core
             {
                 return false;
             }
-            for (int i = 0; i < names.Length; i++)
+            for (int i = 0; i < names.Count; i++)
             {
                 if (operandTypes.SequenceEqual(Operators[names[i]].Signature.OperandTypes))
                 {
-                    opInfo = Operators[name[i]];
+                    opInfo = Operators[names[i]];
                     return true;
                 }
             }
@@ -271,7 +271,7 @@ namespace Pounce.Core
 
         private PounceException Error(int line, string message)
         {
-            return PounceException($"[Line: {line}] {message}");
+            return new PounceException($"[Line: {line}] {message}");
         }
 
         private int GetPrecedence(OperatorRef opRef)
@@ -283,7 +283,7 @@ namespace Pounce.Core
             }
 
             // All operators that share a symbol must have the same precedence
-            string name = names.First;
+            string name = names.First();
 
             return Operators[name].Precedence;
         }
@@ -295,7 +295,7 @@ namespace Pounce.Core
             {
                 throw Error(opRef.Line, $"Undefined operator '{opRef.Symbol}");
             }
-            string name = names.First;
+            string name = names.First();
 
             return Operators[name];
         }
@@ -316,11 +316,11 @@ namespace Pounce.Core
         {
             // 1. All names in Levels are in Operators, and only occur once.
             HashSet<string> seen = new();
-            foreach (List<string> level in levels)
+            foreach (List<string> level in Levels)
             {
                 foreach  (string name in level)
                 {
-                    if (seen.Contains(name) || !Operators.Contain(name))
+                    if (seen.Contains(name) || !Operators.ContainsKey(name))
                     {
                         return false;
                     }
@@ -350,7 +350,7 @@ namespace Pounce.Core
             }
 
             // 4. All operators on a level have the same associativity.
-            foreach (List<string> level in levels)
+            foreach (List<string> level in Levels)
             {
                 Associativity associativity = Operators[level.First()].Associativity;
                 for  (int j = 1; j < level.Count; j++)
@@ -368,7 +368,7 @@ namespace Pounce.Core
             {
                 foreach (string symbol in opInfo.Symbols)
                 {
-                    if (!SymbolToName[(symbol, opInfo.Fixity)].ContainsKey(opInfo.Name))
+                    if (!SymbolToName[(symbol, opInfo.Fixity)].Contains(opInfo.Name))
                     {
                         return false;
                     }
@@ -398,7 +398,7 @@ namespace Pounce.Core
             foreach (List<string> names in SymbolToName.Values)
             {
                 List<List<string>> seen2 = new();
-                int precedence = Operator[names.First()].Precedence;
+                int precedence = Operators[names.First()].Precedence;
                 foreach (string name in names)
                 {
                     OperatorInfo opInfo = Operators[name];

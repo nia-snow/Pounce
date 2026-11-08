@@ -2,6 +2,6 @@ namespace Pounce.Core
 {
     class Vocabulary
     {
-        public List<string>? Symbols;
+        public List<string>? Symbols = null;
     }
 }
