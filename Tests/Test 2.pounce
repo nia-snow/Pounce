@@ -1,0 +1,83 @@
+Define Infix Operator: ∧ #LogicalAnd
+	Syntax: statement
+	Signature: statement, statement → statement
+
+Rule: ∧Intro
+	Let A,B be statements
+	Signature: "A", "B" derive "A ∧ B"
+
+Rule: ∧Elim
+	Let A,B be statements
+	Signature: "A ∧ B" derive "A"
+
+overload Rule: ∧Elim
+	Let A,B be statements
+	Signature: "A ∧ B" derive "B"
+
+// -------
+
+Define Infix Operator: ∨ #LogicalOr
+	Syntax: statement
+	Signature: statement, statement → statement
+	Precedence: looser than ∧
+
+Rule: ∨Intro
+	Let A,B be statements
+	Signature: "A" derive "A ∨ B"
+
+overload Rule: ∨Intro
+	Let A,B be statements
+	Signature: "A" derive "B ∨ A"
+
+Rule: ∨Elim
+	Let A,B,C be statements
+	Signature: "A ∨ B", "A ∴ C", "B ∴ C" derive "C"
+
+// -----
+
+Define Statement: ⊥ #Contradiction
+	Syntax: Statement
+
+Rule: ⊥Intro
+	Let A be statement
+	Signature: "A", "¬A" derive "⊥"
+
+Rule: ⊥Elim
+	Let A be Statement
+	Signature: "⊥" derive "A"
+
+// -----
+
+Define prefix operator: ¬ #LogicalNegation
+	Syntax: Statement
+	Signature: Statement → Statement
+	Precedence: tighter than ∧
+
+Rule: ¬Intro
+	Let A be statement	
+	Signature: "A ∴ ⊥" derive "¬A"
+
+Rule: ¬Elim
+	Let A be statement
+	Signature: "¬¬A" derive "A"
+
+// -----
+
+Theorem: DeMorgan
+Premise:
+Let A, B be statements
+1 ¬(A ∨ B)
+
+Goal:
+1 ¬A ∧ ¬B
+
+Proof:
+1   Suppose A
+2   A ∨ B      	via ∨Intro(1)
+3   ⊥          	via ⊥Intro(prem1, 2)
+4 ¬A           	via ¬Intro(1–3)
+5   Suppose B
+6   A ∨ B      	via ∨Intro(5)
+7   ⊥          	via ⊥Intro(prem1, 6)
+8 ¬B           	via ¬Intro(5–7)
+9 ¬A ∧ ¬B      	via ∧Intro(4,8)

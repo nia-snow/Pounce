@@ -1,0 +1,15 @@
+Define Infix Operator: ∧ #LogicalAnd
+	Syntax: statement
+	Signature: statement, statement → statement
+
+Rule: ∧Intro
+	Let A,B be statements
+	Signature: "A", "B" derive "A ∧ B"
+
+Rule: ∧Elim
+	Let A,B be statements
+	Signature: "A ∧ B" derive "A"
+
+overload Rule: ∧Elim
+	Let A,B be statements
+	Signature: "A ∧ B" derive "B"
