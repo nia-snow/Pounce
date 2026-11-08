@@ -20,7 +20,7 @@ namespace Pounce.Core
             // string filename = args[0];
 
             // Debug:
-            string filename = "operator∧.pounce";
+            string filename = "Tests/operator∧.pounce";
 
             CommentRemover cr = new CommentRemover();
             Sectioner sr = new Sectioner();
