@@ -1,5 +1,5 @@
-Define Infix Operator: ∧ #LogicalAnd
-	Syntax: statement
+Define Infix Operator: ∧
+	Outer Syntax: statement
 	Signature: statement, statement → statement
 
 Rule: ∧Intro
