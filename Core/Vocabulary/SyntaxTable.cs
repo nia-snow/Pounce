@@ -15,32 +15,15 @@ namespace Pounce.Core
         Right,
         None
     }
-
+    
     record OperatorRef(string Symbol, Fixity Fixity, int Line);
+
+    record ConstantRef(string Symbol, int Line);
 
     abstract record Placement;
     record Tighter(OperatorRef Than) : Placement;
     record Looser(OperatorRef Than) : Placement;
     record SameAs(OperatorRef As) : Placement;
-
-
-    record Signature(List<string> OperandTypes, string OutputType)
-    {
-        public virtual bool Equals(Signature? other)
-        {
-            return other is not null
-            && OutputType == other.OutputType
-            && OperandTypes.SequenceEqual(other.OperandTypes);
-        }
-
-        public override int GetHashCode()
-        {
-            HashCode hash = new();
-            hash.Add(OutputType);
-            foreach (string type in OperandTypes) hash.Add(type);
-            return hash.ToHashCode();
-        }
-    }
 
     class OperatorInfo
     {
@@ -67,6 +50,20 @@ namespace Pounce.Core
         }
     }
 
+    class ConstantInfo
+    {
+        public string Name { get; set; }
+        public PounceType Type { get; set; }
+        public HashSet<string> Symbols { get; set; }
+
+        public ConstantInfo(string name, PounceType type)
+        {
+            Name = name;
+            Type = type;
+            Symbols = new();
+        }
+    }
+
 
 
     class SyntaxTable
@@ -74,20 +71,33 @@ namespace Pounce.Core
         // Fields
         // ------
 
+        // Operators
+
         // From an operator's name, get the operator's info
         private Dictionary<string, OperatorInfo> Operators = new();
 
 
         // Given an OperatorRef (string, fixity), give the name of the symbol.
-        private Dictionary<(string, Fixity), List<string>> SymbolToName = new();
+        private Dictionary<(string, Fixity), List<string>> SymbolToOperatorName = new();
 
 
         // The level index to a list of all operator names at that level.
         private List<List<string>> Levels = new();
 
 
+        // Constants
+
+        // From a constant's name, get the constant's info
+        private Dictionary<string, ConstantInfo> Constants = new();
+
+        // Given a symbol, give the name of the symbol
+        private Dictionary<string, List<string>> SymbolToConstantName = new();
+
+
         // Methods
         // -------
+
+        // Operators
 
         public void AddOperator(string name,
                                 Fixity fixity,
@@ -99,6 +109,10 @@ namespace Pounce.Core
                                 int assocLine)
         {
             OperatorInfo op = new OperatorInfo(name, fixity, 0, associativity, signature);
+            if (Constants.ContainsKey(name))
+            {
+                throw Error(defLine, $"Name \"{name}\" already added as constant");
+            }
             if (Operators.ContainsKey(name))
             {
                 throw Error(defLine, $"Name \"{name}\" already added as operator");
@@ -157,7 +171,7 @@ namespace Pounce.Core
                 Renumber(precedence);
             }
             Operators[name].Precedence = precedence;
-            Debug.Assert(CheckInvariants());
+            Debug.Assert(CheckOperatorInvariants());
         }
 
         public void RemoveOperator(string name, int line)
@@ -167,23 +181,22 @@ namespace Pounce.Core
             {
                 throw Error(line, $"Operator \"{name}\" was never defined");
             }
-
+            List<string> symbols = opInfo.Symbols.ToList();
+            for (int i = 0; i < symbols.Count; i++)
+            {
+                RemoveOperatorSymbol(new OperatorRef(symbols[i], opInfo.Fixity, line), name);
+            }
             Levels[opInfo.Precedence].Remove(name);
             if (Levels[opInfo.Precedence].Count == 0)
             {
                 Levels.RemoveAt(opInfo.Precedence);
                 Renumber(opInfo.Precedence);
             }
-            List<string> symbols = opInfo.Symbols.ToList();
-            for (int i = 0; i < symbols.Count; i++)
-            {
-                RemoveSymbol(new OperatorRef(symbols[i], opInfo.Fixity, line), name);
-            }
             Operators.Remove(name);
-            Debug.Assert(CheckInvariants());
+            Debug.Assert(CheckOperatorInvariants());
         }
 
-        public void AddSymbol(OperatorRef opRef, string name)
+        public void AddOperatorSymbol(OperatorRef opRef, string name)
         {
             OperatorInfo? opInfo;
             if (!Operators.TryGetValue(name, out opInfo))
@@ -192,23 +205,27 @@ namespace Pounce.Core
             }
             if (opInfo.Fixity != opRef.Fixity)
             {
-                throw Error (opRef.Line, $"Operator {name} has fixity {opInfo.Fixity}, not the suggested fixity {opRef.Fixity}");
+                throw Error(opRef.Line, $"Operator {name} has fixity {opInfo.Fixity}, not the suggested fixity {opRef.Fixity}");
             }
             if (opInfo.Symbols.Contains(opRef.Symbol))
             {
-                throw Error(opRef.Line, $"Symbol {opRef.Symbol} already registered with name \"{name}\"");
+                throw Error(opRef.Line, $"Symbol '{opRef.Symbol}' already registered with name \"{name}\"");
+            }
+            if (opRef.Fixity == Fixity.Prefix && IsConstant(opRef.Symbol))
+            {
+                throw Error(opRef.Line, $"Can not define prefix operator '{opRef.Symbol}' when constant already uses this symbol");
             }
 
             List<string>? names;
             var key = (opRef.Symbol, opRef.Fixity);
-            SymbolToName.TryGetValue(key, out names);
+            SymbolToOperatorName.TryGetValue(key, out names);
             if (names != null)
             {
                 foreach (string anotherName in names)
                 {
                     if (Operators[anotherName].Precedence != Operators[name].Precedence)
                     {
-                        throw Error(opRef.Line, $"Operator '{opRef.Symbol}'' does not have same precedence as {anotherName}, which shares the same symbol");
+                        throw Error(opRef.Line, $"Operator '{opRef.Symbol}' does not have same precedence as {anotherName}, which shares the same symbol");
                     }
                     if (Operators[anotherName].Signature.OperandTypes.SequenceEqual(Operators[name].Signature.OperandTypes))
                     {
@@ -219,16 +236,16 @@ namespace Pounce.Core
             else
             {
                 names = new List<string>();
-                SymbolToName[key] = names;
+                SymbolToOperatorName[key] = names;
             }
 
             names.Add(name);
             opInfo.Symbols.Add(opRef.Symbol);
             
-            Debug.Assert(CheckInvariants());
+            Debug.Assert(CheckOperatorInvariants());
         }
 
-        public void RemoveSymbol(OperatorRef opRef, string name)
+        public void RemoveOperatorSymbol(OperatorRef opRef, string name)
         {
             OperatorInfo? opInfo;
             if (!Operators.TryGetValue(name, out opInfo))
@@ -236,25 +253,30 @@ namespace Pounce.Core
                 throw Error(opRef.Line, $"Nonexistent operator \"{name}\"");
             }
             List<string>? names;
-            if (!SymbolToName.TryGetValue((opRef.Symbol, opRef.Fixity), out names))
+            if (!SymbolToOperatorName.TryGetValue((opRef.Symbol, opRef.Fixity), out names))
             {
                 throw Error(opRef.Line, $"Unregistered symbol '{opRef.Symbol}' with fixity {opRef.Fixity}");
+            }
+
+            if (!opInfo.Symbols.Contains(opRef.Symbol))
+            {
+                throw Error(opRef.Line, $"Symbol '{opRef.Symbol}' not registered with name \"{name}\"");
             }
 
             opInfo.Symbols.Remove(opRef.Symbol);
             names.Remove(name);
             if (names.Count == 0)
             {
-                SymbolToName.Remove((opRef.Symbol,opRef.Fixity));
+                SymbolToOperatorName.Remove((opRef.Symbol,opRef.Fixity));
             }
-            Debug.Assert(CheckInvariants());
+            Debug.Assert(CheckOperatorInvariants());
         }
 
-        public bool TryLookup(string symbol, Fixity fixity, List<string> operandTypes, out OperatorInfo? opInfo)
+        public bool TryLookupOperator(string symbol, Fixity fixity, List<PounceType> operandTypes, out OperatorInfo? opInfo)
         {
             List<string>? names;
             opInfo = null;
-            if (!SymbolToName.TryGetValue((symbol, fixity), out names))
+            if (!SymbolToOperatorName.TryGetValue((symbol, fixity), out names))
             {
                 return false;
             }
@@ -269,6 +291,155 @@ namespace Pounce.Core
             return false;
         }
 
+        public bool IsOperator(string symbol, Fixity fixity)
+        {
+            return SymbolToOperatorName.ContainsKey((symbol, fixity));
+        }
+
+        public IReadOnlyList<string> AllOperatorsWith(string symbol, Fixity fixity)
+        {
+            if (!IsOperator(symbol, fixity))
+            {
+                return new List<string>();
+            }
+            return SymbolToOperatorName[(symbol, fixity)];
+        }
+
+        // Constants
+
+        public void AddConstant(string name, PounceType type, int line)
+        {
+            if (Constants.ContainsKey(name))
+            {
+                throw Error(line, $"Name \"{name}\" already added as constant");
+            }
+            if (Operators.ContainsKey(name))
+            {
+                throw Error(line, $"Name \"{name}\" already added as operator");
+            }
+            Constants.Add(name, new ConstantInfo(name, type));
+            Debug.Assert(CheckConstantInvariants());
+        }
+
+        public void RemoveConstant(string name, int line)
+        {
+            ConstantInfo? constInfo;
+            if (!Constants.TryGetValue(name, out constInfo))
+            {
+                throw Error(line, $"Constant '{name}' was never defined");
+            }
+
+            List<string> symbols = constInfo.Symbols.ToList();
+            for (int i = 0; i < symbols.Count; i++)
+            {
+                RemoveConstantSymbol(new ConstantRef(symbols[i], line), name);
+            }
+            Constants.Remove(name);
+            Debug.Assert(CheckConstantInvariants());
+        }
+
+        public void AddConstantSymbol(ConstantRef constRef, string name)
+        {
+            ConstantInfo? constInfo;
+            if (!Constants.TryGetValue(name, out constInfo))
+            {
+                throw Error(constRef.Line, $"Nonexistent constant \"{name}\"");
+            }
+            if (constInfo.Symbols.Contains(constRef.Symbol))
+            {
+                throw Error(constRef.Line, $"Constant '{constRef.Symbol}' already registered with name \"{name}\"");
+            }
+            if (IsOperator(constRef.Symbol, Fixity.Prefix))
+            {
+                throw Error(constRef.Line, $"Can not define constant '{constRef.Symbol}' when prefix operator already uses this symbol");
+            }
+
+            List<string>? names;
+            SymbolToConstantName.TryGetValue(constRef.Symbol, out names);
+            if (names != null)
+            {
+                foreach (string anotherName in names)
+                {
+                    if (Constants[anotherName].Type == Constants[name].Type)
+                    {
+                        throw Error(constRef.Line, $"Constant '{constRef.Symbol}' has the same type as {anotherName}, which share the same symbol");
+                    }
+                }
+            }
+            else
+            {
+                names = new List<string>();
+                SymbolToConstantName[constRef.Symbol] = names;
+            }
+
+            names.Add(name);
+            constInfo.Symbols.Add(constRef.Symbol);
+            Debug.Assert(CheckConstantInvariants());
+        }
+
+        public void RemoveConstantSymbol(ConstantRef constRef, string name)
+        {
+            ConstantInfo? constInfo;
+            if (!Constants.TryGetValue(name, out constInfo))
+            {
+                throw Error(constRef.Line, $"Nonexistent constant \"{name}\"");
+            }
+            List<string>? names;
+            if (!SymbolToConstantName.TryGetValue(constRef.Symbol, out names))
+            {
+                throw Error(constRef.Line, $"Unregistered constant '{constRef.Symbol}' with type {constInfo.Type}");
+            }
+
+            if (!constInfo.Symbols.Contains(constRef.Symbol))
+            {
+                throw Error(constRef.Line, $"Symbol '{constRef.Symbol}' not registered with name \"{name}\"");
+            }
+
+            constInfo.Symbols.Remove(constRef.Symbol);
+            names.Remove(name);
+            if (names.Count == 0)
+            {
+                SymbolToConstantName.Remove(constRef.Symbol);
+            }
+            Debug.Assert(CheckConstantInvariants());
+        }
+
+        public bool TryLookupConstant(string symbol, PounceType type, out ConstantInfo? constInfo)
+        {
+            List<string>? names;
+            constInfo = null;
+            if (!SymbolToConstantName.TryGetValue(symbol, out names))
+            {
+                return false;
+            }
+            for (int i = 0; i < names.Count; i++)
+            {
+                if (type == Constants[names[i]].Type)
+                {
+                    constInfo = Constants[names[i]];
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public bool IsConstant(string symbol)
+        {
+            return SymbolToConstantName.ContainsKey(symbol);
+        }
+
+        public IReadOnlyList<string> AllConstantsWith(string symbol)
+        {
+            if (!IsConstant(symbol))
+            {
+                return new List<string>();
+            }
+            return SymbolToConstantName[symbol];
+        }
+
+
+        // Privates
+
         private PounceException Error(int line, string message)
         {
             return new PounceException($"[Line: {line}] {message}");
@@ -277,9 +448,9 @@ namespace Pounce.Core
         private int GetPrecedence(OperatorRef opRef)
         {
             List<string>? names;
-            if (!SymbolToName.TryGetValue((opRef.Symbol, opRef.Fixity), out names))
+            if (!SymbolToOperatorName.TryGetValue((opRef.Symbol, opRef.Fixity), out names))
             {
-                throw Error(opRef.Line, $"Undefined operator '{opRef.Symbol}");
+                throw Error(opRef.Line, $"Undefined operator '{opRef.Symbol}'");
             }
 
             // All operators that share a symbol must have the same precedence
@@ -291,9 +462,9 @@ namespace Pounce.Core
         private OperatorInfo GetOperatorInfoOfAnyMatching(OperatorRef opRef)
         {
             List<string>? names;
-            if (!SymbolToName.TryGetValue((opRef.Symbol, opRef.Fixity), out names))
+            if (!SymbolToOperatorName.TryGetValue((opRef.Symbol, opRef.Fixity), out names))
             {
-                throw Error(opRef.Line, $"Undefined operator '{opRef.Symbol}");
+                throw Error(opRef.Line, $"Undefined operator '{opRef.Symbol}'");
             }
             string name = names.First();
 
@@ -312,7 +483,7 @@ namespace Pounce.Core
             }
         }
 
-        private bool CheckInvariants()
+        private bool CheckOperatorInvariants()
         {
             // 1. All names in Levels are in Operators, and only occur once.
             HashSet<string> seen = new();
@@ -362,19 +533,19 @@ namespace Pounce.Core
                 }
             }
 
-            // 5. The symbols in each operator indeed map in SymbolToName to that operator,
-            //    and each name in SymbolToName is a real name.
+            // 5. The symbols in each operator indeed map in SymbolToOperatorName to that operator,
+            //    and each name in SymbolToOperatorName is a real name.
             foreach (OperatorInfo opInfo in Operators.Values)
             {
                 foreach (string symbol in opInfo.Symbols)
                 {
-                    if (!SymbolToName[(symbol, opInfo.Fixity)].Contains(opInfo.Name))
+                    if (!SymbolToOperatorName[(symbol, opInfo.Fixity)].Contains(opInfo.Name))
                     {
                         return false;
                     }
                 }
             }
-            foreach (List<string> names in SymbolToName.Values)
+            foreach (List<string> names in SymbolToOperatorName.Values)
             {
                 foreach (string name in names)
                 {
@@ -385,8 +556,8 @@ namespace Pounce.Core
                 }
             }
 
-            // 6. Each SymbolToName list is non-empty.
-            foreach (List<string> names in SymbolToName.Values)
+            // 6. Each SymbolToOperatorName list is non-empty.
+            foreach (List<string> names in SymbolToOperatorName.Values)
             {
                 if (names.Count == 0)
                 {
@@ -395,15 +566,15 @@ namespace Pounce.Core
             }
 
             // 7. All names that share a symbol have the same precedence but different arguments.
-            foreach (List<string> names in SymbolToName.Values)
+            foreach (List<string> names in SymbolToOperatorName.Values)
             {
-                List<List<string>> seen2 = new();
+                List<List<PounceType>> seen2 = new();
                 int precedence = Operators[names.First()].Precedence;
                 foreach (string name in names)
                 {
                     OperatorInfo opInfo = Operators[name];
-                    List<string> arguments = opInfo.Signature.OperandTypes;
-                    foreach (List<string> args in seen2)
+                    List<PounceType> arguments = opInfo.Signature.OperandTypes;
+                    foreach (List<PounceType> args in seen2)
                     {
                         if (args.SequenceEqual(arguments))
                         {
@@ -418,6 +589,58 @@ namespace Pounce.Core
                 }
             }
 
+            return true;
+        }
+
+        private bool CheckConstantInvariants()
+        {
+            // 1. The symbols in each constant indeed map  in SymbolToConstantName to that constant,
+            // and each name in SymbolToConstantName is a real name.
+            foreach (ConstantInfo constInfo in Constants.Values)
+            {
+                foreach (string symbol in constInfo.Symbols)
+                {
+                    if (!SymbolToConstantName[symbol].Contains(constInfo.Name))
+                    {
+                        return false;
+                    }
+                }
+            }
+            foreach (List<string> names in SymbolToConstantName.Values)
+            {
+                foreach (string name in names)
+                {
+                    if (!Constants.ContainsKey(name))
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            // 2. Each SymbolToConstantName list is non-empty.
+            foreach (List<string> names in SymbolToConstantName.Values)
+            {
+                if (names.Count == 0)
+                {
+                    return false;
+                }
+            }
+
+            // 3. All names that share a symbol have different types.
+            foreach (List<string> names in SymbolToConstantName.Values)
+            {
+                HashSet<PounceType> seen = new();
+                foreach (string name in names)
+                {
+                    ConstantInfo constInfo = Constants[name];
+                    PounceType type = constInfo.Type;
+                    if (seen.Contains(type))
+                    {
+                        return false;
+                    }
+                    seen.Add(type);
+                }
+            }
             return true;
         }
     }
