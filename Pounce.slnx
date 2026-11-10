@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Pounce/Pounce.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Pounce.UnitTests/Pounce.UnitTests.csproj" />
+  </Folder>
+</Solution>
